@@ -1,9 +1,6 @@
 name: Quet co phieu vung mua
 
 on:
-  schedule:
-    - cron: '0 23 * * 0-4'
-    - cron: '31 4 * * 1-5'
   workflow_dispatch:
 
 permissions:
