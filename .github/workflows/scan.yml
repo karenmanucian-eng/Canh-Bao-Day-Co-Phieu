@@ -1,4 +1,4 @@
-name: Quet co phieu vung mua
+name: Canh Bao Day Co Phieu
 
 on:
   workflow_dispatch:
