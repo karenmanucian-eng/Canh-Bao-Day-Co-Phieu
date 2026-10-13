@@ -6,6 +6,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: quet-co-phieu
+  cancel-in-progress: false
+
 jobs:
   quet:
     runs-on: ubuntu-latest
@@ -25,15 +29,17 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
-          VNSTOCK_INTERACTIVE: '0'
         run: python -u test.py
 
       - name: Luu lai danh sach ma loi
+        if: always()
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          cp ma_loi.csv /tmp/ma_loi_moi.csv || touch /tmp/ma_loi_moi.csv
+          git fetch origin main
+          git reset --hard origin/main
+          cat /tmp/ma_loi_moi.csv ma_loi.csv | sort -u > /tmp/ma_loi_gop.csv
+          cp /tmp/ma_loi_gop.csv ma_loi.csv
           git add ma_loi.csv
-          git diff --staged --quiet || git commit -m "Cap nhat danh sach ma loi"
-                    git pull --rebase origin main
-          git push
+          git diff --staged --quiet || (git commit -m "Cap nhat danh sach ma loi" && git push origin HEAD:main)
