@@ -135,8 +135,17 @@ def lay_chuoi(df_ratio, danh_sach_id):
 
 # ------------------------------------------------------------------ dữ liệu giá & chỉ báo
 
+def la_phien_sang(bay_gio):
+    """Chạy trong giờ nghỉ trưa (từ 11:30 đến trước 13:00): nến hôm nay là kết quả phiên SÁNG."""
+    phut = bay_gio.hour * 60 + bay_gio.minute
+    return 11 * 60 + 30 <= phut < 13 * 60
+
+
 def bo_phien_chua_dong(df, bay_gio):
-    """Nếu đang chạy trước 15h VN và nến cuối là hôm nay thì bỏ nến đó (phiên chưa đóng)."""
+    """Bỏ nến hôm nay nếu phiên chưa đóng (trước 15h), TRỪ khi đang chạy lúc nghỉ trưa: khi đó giữ
+    nến hôm nay (kết quả phiên sáng) và tin nhắn sẽ ghi rõ là dữ liệu phiên sáng."""
+    if la_phien_sang(bay_gio):
+        return df
     if len(df) and bay_gio.hour < GIO_PHIEN_DONG and df["time"].iloc[-1].date() == bay_gio.date():
         return df.iloc[:-1].reset_index(drop=True)
     return df
@@ -528,8 +537,12 @@ def tin_gon(r, thu_tu):
 
 def tin_dau(bay_gio, ngay, danh_sach, thu):
     ma = ", ".join(r["ma"] for r in danh_sach) if danh_sach else "không có mã nào"
+    if la_phien_sang(bay_gio) and ngay == bay_gio.date():
+        nguon = f"kết quả PHIÊN SÁNG {ngay.strftime('%d/%m/%Y')}, chưa đóng cửa, có thể đổi ở phiên chiều"
+    else:
+        nguon = f"dữ liệu phiên đã đóng {ngay.strftime('%d/%m/%Y')}"
     return (f"📉 CẢNH BÁO VÙNG ĐÁY" + (" (CHẠY THỬ)" if thu else "") + "\n"
-            f"🕒 Quét lúc {bay_gio.strftime('%H:%M %d/%m/%Y')} (dữ liệu phiên {ngay.strftime('%d/%m/%Y')})\n"
+            f"🕒 Quét lúc {bay_gio.strftime('%H:%M %d/%m/%Y')} ({nguon})\n"
             f"✅ Mã đạt đủ điều kiện ({len(danh_sach)}): {ma}")
 
 
@@ -586,6 +599,9 @@ def chay(args):
     ngay_ket_thuc = bay_gio.strftime("%Y-%m-%d")
     ngay_bat_dau = (bay_gio - timedelta(days=SO_NGAY_LICH_SU)).strftime("%Y-%m-%d")
     che_do_thu = bool(args.symbols)
+    if args.gio:  # chỉ để thử: giả lập giờ chạy, ví dụ --gio 11:31
+        h, m = (int(x) for x in args.gio.split(":"))
+        bay_gio = bay_gio.replace(hour=h, minute=m)
 
     ds_goc = [s.upper() for s in args.symbols] if che_do_thu else kbs_client.danh_sach_co_phieu()
     ma_loi_cu = set() if che_do_thu else doc_ma_loi()
@@ -694,6 +710,7 @@ def doc_tham_so(argv=None):
     p = argparse.ArgumentParser(description="BOT cổ phiếu vùng đáy V2")
     p.add_argument("--symbols", nargs="*", help="chỉ quét các mã này (chế độ thử, hiển thị cả mã không đạt điều kiện)")
     p.add_argument("--no-telegram", action="store_true", help="không gửi Telegram, chỉ in ra màn hình")
+    p.add_argument("--gio", help="chỉ để thử: giả lập giờ chạy theo giờ VN, ví dụ 11:31 hoặc 06:00")
     p.add_argument("--show-all", action="store_true", help="tải tài chính và hiển thị cả mã không đạt điều kiện bắt buộc")
     return p.parse_args(argv)
 
