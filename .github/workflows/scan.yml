@@ -29,7 +29,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python -u test.py
+        run: python -u bot_v2.py
 
       - name: Luu lai danh sach ma loi
         if: always()
