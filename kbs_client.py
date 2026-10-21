@@ -105,9 +105,14 @@ def chi_so_tai_chinh(symbol, limit=4):
             break
 
         head_list = data.get("Head", []) or []
-        sorted_head = sorted(head_list, key=lambda x: x.get("ID", 0))
+        # KBS trả Head theo thứ tự quý mới -> cũ, nhưng Value1..N lại theo thứ tự cũ -> mới
+        # (Value cuối cùng là quý mới nhất). Đã đối chiếu bằng 2 lần gọi pageSize=4 và pageSize=5.
+        # Vì vậy: cột j của Head (0 = mới nhất) tương ứng Value{N - j}. KHÔNG sắp theo ID.
+        n_heads = len(head_list)
         periods = []
-        for head in sorted_head:
+        value_index = []
+        for j, head in enumerate(head_list):
+            value_index.append(n_heads - j)
             year = head.get("YearPeriod", "")
             term_name = head.get("TermName", "")
             if term_name and "Quý" in term_name:
@@ -131,10 +136,10 @@ def chi_so_tai_chinh(symbol, limit=4):
             item_en = record.get("NameEn", "")
             item_id = _slugify(item_en) if item_en and item_en.strip() else _slugify(item)
             item_meta.setdefault(item_id, (item, item_en))
-            for i, label in enumerate(periods, 1):
+            for label, vi in zip(periods, value_index):
                 if label not in new_periods:
                     continue
-                val = record.get(f"Value{i}")
+                val = record.get(f"Value{vi}")
                 if val is not None:
                     try:
                         val = float(val)
