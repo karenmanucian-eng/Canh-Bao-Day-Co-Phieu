@@ -408,7 +408,11 @@ def phan_tich_gia(df):
     kq["bottom"] = diem_bottom(kq)
 
     # đã thoát quá bán trong vòng SO_PHIEN_THEO_DOI phiên gần đây (không tính phiên hôm nay)?
+    kq["day20"] = float(df["low"].iloc[-20:].min())
+    kq["tang_tu_day20"] = (kq["gia"] / kq["day20"] - 1) * 100
     kq["thoat_qua_ban"] = None
+    kq["day_qua_ban"] = None
+    kq["tang_tu_day"] = None
     if not kq["qua_ban_4"] and kq["du_kl"]:
         gan = df.iloc[-(SO_PHIEN_THEO_DOI + 1):-1]
         co = gan[gan["QUA_BAN"]]
@@ -418,6 +422,8 @@ def phan_tich_gia(df):
             day_j = float(df["low"].iloc[max(0, j - 2):j + 1].min())
             if r["close"] >= day_j and r["RSI14"] <= 50:
                 kq["thoat_qua_ban"] = so_phien
+                kq["day_qua_ban"] = float(df["low"].iloc[max(0, j - 2):].min())
+                kq["tang_tu_day"] = (kq["gia"] / kq["day_qua_ban"] - 1) * 100
     return kq
 
 
@@ -458,10 +464,12 @@ def tin_gon(r, thu_tu):
     tc, th, kb = r["tc"], r["th"], r["kich_ban"]
     icon, nhan = nhan_muc_do(r)
     dong = [f"{thu_tu}) {r['ma']} · {r['gia']:.2f} nghìn · {icon} {nhan}",
-            f"• Điểm: Chất lượng {tc['quality']:.0f} | Đáy {r['bottom']:.0f} | Tin cậy dữ liệu {tc['tin_cay']:.0f}",
+            f"• Điểm chất lượng (tài chính): {tc['quality']:.0f}/100",
+            f"• Điểm tín hiệu đáy (kỹ thuật): {r['bottom']:.0f}/100 · Tin cậy dữ liệu: {tc['tin_cay']:.0f}/100",
             f"• Giá: {th['trang_thai'].lower()} ({th['n_core']}/4 tín hiệu quay đầu)",
             f"• Quá bán: RSI14 {r['rsi14']:.0f} · MFI14 {r['mfi14']:.0f}",
             f"• Tài chính: P/E {f(tc['pe'], '.1f')} · ROE {f(tc['roe'], '.1f', '%')} · ROA {f(tc['roa'], '.1f', '%')}",
+            f"• Đáy 20 phiên {r['day20']:.2f} → giá hiện tại cao hơn {r['tang_tu_day20']:+.1f}%",
             f"• Vùng giá {kb['vung_mua_tu']:.2f}–{kb['vung_mua_den']:.2f} · Cắt lỗ {kb['stop']:.2f} (-{kb['rui_ro_pct']:.1f}%)"]
     if kb["kc1"]:
         dong.append(f"• Mục tiêu {kb['kc1']:.2f} (+{(kb['kc1'] / kb['gia'] - 1) * 100:.1f}%) · R:R {kb['rr1']:.1f}")
@@ -486,19 +494,23 @@ def tin_gon(r, thu_tu):
     return "\n".join(dong)
 
 
-def tin_dau(ngay, so_quet, so_dat, thu):
-    return (f"📉 CẢNH BÁO VÙNG ĐÁY — {ngay.strftime('%d/%m/%Y')}" + (" (CHẠY THỬ)" if thu else "") + "\n"
-            "• Kỹ thuật: RSI14<30, RSI7<30, MFI14<20, MFI11<20, KL TB10≥20k\n"
-            "• Tài chính: 0<P/E<10, ROA>0, ROE>5%\n"
-            f"• Quét {so_quet} mã → {so_dat} mã đạt đủ điều kiện")
+def tin_dau(bay_gio, ngay, danh_sach, thu):
+    ma = ", ".join(r["ma"] for r in danh_sach) if danh_sach else "không có mã nào"
+    return (f"📉 CẢNH BÁO VÙNG ĐÁY" + (" (CHẠY THỬ)" if thu else "") + "\n"
+            f"🕒 Quét lúc {bay_gio.strftime('%H:%M %d/%m/%Y')} (dữ liệu phiên {ngay.strftime('%d/%m/%Y')})\n"
+            f"✅ Mã đạt đủ điều kiện ({len(danh_sach)}): {ma}")
 
 
 def dong_sau_qua_ban(ds):
-    dong = [f"🔁 VỪA THOÁT QUÁ BÁN (≤{SO_PHIEN_THEO_DOI} phiên, chưa thủng đáy)"]
+    dong = [f"🔁 VỪA THOÁT QUÁ BÁN (trong {SO_PHIEN_THEO_DOI} phiên gần đây, giá chưa thủng đáy)",
+            "Chất lượng = điểm tài chính (0-100). Tín hiệu đáy = điểm kỹ thuật quay đầu (0-100). "
+            "Lời/lỗ = giá hiện tại so với giá thấp nhất của đợt quá bán."]
     for r in ds[:TOI_DA_DONG_THEO_DOI]:
         tc = r["tc"]
-        dong.append(f"• {r['ma']} {r['gia']:.2f} · {r['thoat_qua_ban']} phiên trước · "
-                    f"Chất lượng {tc['quality']:.0f} · Đáy {r['bottom']:.0f} · RSI14 {r['rsi14']:.0f}")
+        icon = nhan_muc_do(r)[0]
+        dong.append(f"• {icon} {r['ma']} · giá {r['gia']:.2f} · đáy {r['day_qua_ban']:.2f} · "
+                    f"{r['tang_tu_day']:+.1f}% so với đáy · thoát quá bán {r['thoat_qua_ban']} phiên trước · "
+                    f"Chất lượng {tc['quality']:.0f} · Tín hiệu đáy {r['bottom']:.0f} · RSI14 {r['rsi14']:.0f}")
     if len(ds) > TOI_DA_DONG_THEO_DOI:
         dong.append(f"... và {len(ds) - TOI_DA_DONG_THEO_DOI} mã nữa")
     return "\n".join(dong)
@@ -610,7 +622,7 @@ def chay(args):
     thu_tu_nhan = {"🟢": 0, "🟡": 1, "🔴": 2}
     danh_sach.sort(key=lambda r: (thu_tu_nhan[nhan_muc_do(r)[0]], -khoa_xep_hang(r)))
 
-    khoi = [tin_dau(ngay_tham_chieu, len(ds), len(danh_sach), che_do_thu)]
+    khoi = [tin_dau(bay_gio, ngay_tham_chieu, danh_sach, che_do_thu)]
     if not danh_sach:
         khoi.append("Hôm nay không có mã nào đạt đủ điều kiện.")
     for thu_tu, r in enumerate(danh_sach[:TOI_DA_TIN_CHI_TIET * 2], start=1):
