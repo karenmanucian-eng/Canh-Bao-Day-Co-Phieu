@@ -443,115 +443,69 @@ def khoa_xep_hang(r):
 
 # ------------------------------------------------------------------ tin nhắn
 
-def dong_tin_hieu(th):
-    mau = [("RSI tăng", "rsi_tang"), ("MFI tăng", "mfi_tang"), ("Giữ đáy 3 phiên", "giu_day"),
-           ("Trên MA5", "tren_ma5"), ("MACD cải thiện", "macd"), ("Lực cầu", "luc_cau"),
-           ("Phân kỳ dương", "phan_ky")]
-    return " ".join(("✅" if th[k] else "❌") + " " + ten for ten, k in mau)
-
-
-def tin_chi_tiet(r, thu_tu=None):
+def nhan_muc_do(r):
+    """Nhãn mức độ: 🟢 đáng nghiên cứu trước / 🟡 cần xem kỹ / 🔴 rủi ro rất cao."""
     tc, th, kb = r["tc"], r["th"], r["kich_ban"]
-    dau = f"#{thu_tu} " if thu_tu else ""
-    dong = [f"📌 {dau}{r['ma']} — giá {r['gia']:.2f} nghìn (phiên {r['ngay'].strftime('%d/%m')})"]
-    dong.append(f"📉 Trạng thái giá: {th['trang_thai']}")
-    if tc:
-        dong.append(f"🏢 Tài chính: {tc['trang_thai']}")
-        dong.append(f"📊 Quality {tc['quality']:.0f} · Bottom {r['bottom']:.0f} (điểm thử nghiệm) · "
-                    f"Độ tin cậy dữ liệu {tc['tin_cay']:.0f}/100")
-    dong += ["",
-             f"Kỹ thuật: RSI14 {r['rsi14']:.1f} · RSI7 {r['rsi7']:.1f} · MFI14 {r['mfi14']:.1f} · MFI11 {r['mfi11']:.1f}",
-             f"KL TB 10 phiên {r['vol_tb10']:,.0f} · ATR {kb['atr_pct']:.1f}%",
-             "Tín hiệu: " + dong_tin_hieu(th)]
-    if tc:
-        dong += ["",
-                 f"ROE {f(tc['roe'], '.1f', '%')} · ROA {f(tc['roa'], '.1f', '%')} · P/E {f(tc['pe'], '.1f')} · "
-                 f"P/B {f(tc['pb'], '.2f')} · EPS 4Q {f(tc['eps'], ',.0f')}",
-                 f"Biên LN gộp {f(tc['gm'], '.1f', '%')} · Biên LN ròng {f(tc['nm'], '.1f', '%')} · "
-                 f"Tăng trưởng EPS cùng kỳ {f(tc['eps_yoy'], '+.0f', '%')}",
-                 ("Nợ/Vốn chủ & thanh toán hiện hành: không áp dụng (tổ chức tài chính)" if tc["la_tctc"]
-                  else f"Nợ/Vốn chủ ~ {f(tc['de'], '.2f')} lần · Thanh toán hiện hành {f(tc['cr'], '.2f')}")]
-    dong += ["", "Kịch bản kỹ thuật (nghìn đồng, tham khảo):",
-             f"• Vùng giá tham khảo {kb['vung_mua_tu']:.2f}–{kb['vung_mua_den']:.2f} · Hỗ trợ {kb['ho_tro']:.2f} · "
-             f"Stop {kb['stop']:.2f} (-{kb['rui_ro_pct']:.1f}%)"]
+    if (tc["trang_thai"].startswith("🔴") or r["gia"] < 5 or kb["atr_pct"] > 10
+            or r["rsi14"] < 8 or r["mfi14"] < 2):
+        return "🔴", "RỦI RO RẤT CAO"
+    if tc["quality"] >= 70 and th["n_core"] >= 2 and not tc["nang"]:
+        return "🟢", "Đáng nghiên cứu trước"
+    return "🟡", "Cần xem kỹ"
+
+
+def tin_gon(r, thu_tu):
+    tc, th, kb = r["tc"], r["th"], r["kich_ban"]
+    icon, nhan = nhan_muc_do(r)
+    dong = [f"{thu_tu}) {r['ma']} · {r['gia']:.2f} nghìn · {icon} {nhan}",
+            f"• Điểm: Chất lượng {tc['quality']:.0f} | Đáy {r['bottom']:.0f} | Tin cậy dữ liệu {tc['tin_cay']:.0f}",
+            f"• Giá: {th['trang_thai'].lower()} ({th['n_core']}/4 tín hiệu quay đầu)",
+            f"• Quá bán: RSI14 {r['rsi14']:.0f} · MFI14 {r['mfi14']:.0f}",
+            f"• Tài chính: P/E {f(tc['pe'], '.1f')} · ROE {f(tc['roe'], '.1f', '%')} · ROA {f(tc['roa'], '.1f', '%')}",
+            f"• Vùng giá {kb['vung_mua_tu']:.2f}–{kb['vung_mua_den']:.2f} · Cắt lỗ {kb['stop']:.2f} (-{kb['rui_ro_pct']:.1f}%)"]
     if kb["kc1"]:
-        dong.append(f"• Kháng cự 1 {kb['kc1']:.2f} (+{(kb['kc1'] / kb['gia'] - 1) * 100:.1f}%) · R:R1 {kb['rr1']:.1f}"
-                    + (f" · Kháng cự 2 {kb['kc2']:.2f}" if kb["kc2"] else ""))
+        dong.append(f"• Mục tiêu {kb['kc1']:.2f} (+{(kb['kc1'] / kb['gia'] - 1) * 100:.1f}%) · R:R {kb['rr1']:.1f}")
     else:
-        dong.append("• Không có kháng cự gần hợp lệ: không tính mục tiêu/R:R")
+        dong.append("• Mục tiêu: chưa có kháng cự gần")
     canh_bao = []
     if r["rsi14"] < 8 or r["mfi14"] < 2:
-        canh_bao.append("RSI/MFI cực thấp: xu hướng giảm có thể còn tiếp diễn")
-    if r["so_phien_bien_dong_10"]:
-        canh_bao.append(f"{r['so_phien_bien_dong_10']} phiên biến động ≥10% trong 20 phiên gần nhất")
+        canh_bao.append("RSI/MFI cực thấp, đà giảm có thể còn tiếp")
     if r["duoi_ma50"]:
-        canh_bao.append("giá đang dưới MA50 (xu hướng trung hạn còn yếu)")
+        canh_bao.append("Giá dưới MA50")
+    if tc["la_tctc"]:
+        canh_bao.append("Tổ chức tài chính: chưa kiểm tra NPL/CAR/NIM")
     if r.get("so_phien_gd_20") is not None and r["so_phien_gd_20"] < 15:
-        canh_bao.append(f"chỉ {r['so_phien_gd_20']}/20 phiên gần nhất có giao dịch (thanh khoản rất mỏng hoặc bị hạn chế)")
-    if tc:
-        canh_bao += tc["yeu"] + tc["nang"] + tc["nhe"]
-    if canh_bao:
-        dong += ["", "🔎 CẦN KIỂM TRA:"] + [f"• {c}" for c in canh_bao]
-    if tc and tc["ghi_chu"]:
-        dong += ["", "📝 GHI CHÚ (không trừ điểm):"] + [f"• {c}" for c in tc["ghi_chu"]]
+        canh_bao.append(f"Chỉ {r['so_phien_gd_20']}/20 phiên có giao dịch")
+    canh_bao += tc["yeu"] + tc["nang"] + tc["nhe"]
+    for c in canh_bao[:3]:
+        dong.append(f"• ⚠️ {c}")
+    if len(canh_bao) > 3:
+        dong.append(f"• ⚠️ +{len(canh_bao) - 3} cảnh báo khác")
     if r.get("khong_dat_bat_buoc"):
-        dong += ["", "⚠️ MÃ NÀY KHÔNG ĐẠT ĐIỀU KIỆN BẮT BUỘC, chỉ hiển thị để xem thử"]
+        dong.append("• ⛔ Không đạt điều kiện bắt buộc (chỉ xem thử)")
     return "\n".join(dong)
 
 
-TEN_NHOM = {
-    "DU_DIEU_KIEN": "✅ ĐỦ ĐIỀU KIỆN KỸ THUẬT (tài chính đạt chuẩn sơ bộ + giá xác nhận phục hồi sơ bộ + R:R1 ≥ 1,5)",
-    "THEO_DOI": "👀 THEO DÕI VÙNG ĐÁY (đã quá bán, chưa đủ điều kiện ở trên)",
-    "TAI_CHINH_YEU": "🔴 TÀI CHÍNH YẾU/BẤT THƯỜNG (chỉ để tham khảo)",
-}
+def tin_dau(ngay, so_quet, so_dat, thu):
+    return (f"📉 CẢNH BÁO VÙNG ĐÁY — {ngay.strftime('%d/%m/%Y')}" + (" (CHẠY THỬ)" if thu else "") + "\n"
+            "• Kỹ thuật: RSI14<30, RSI7<30, MFI14<20, MFI11<20, KL TB10≥20k\n"
+            "• Tài chính: 0<P/E<10, ROA>0, ROE>5%\n"
+            f"• Quét {so_quet} mã → {so_dat} mã đạt đủ điều kiện")
 
 
-def tin_tong_quan(ngay_tham_chieu, nhom, so_quet, loi_api, loi_tai_chinh, khong_du_lieu, che_do_thu, loai_tc=()):
-    dong = [f"📉 BOT VÙNG ĐÁY V2 — {ngay_tham_chieu.strftime('%d/%m/%Y')}" + (" (CHẠY THỬ)" if che_do_thu else ""),
-            "Điều kiện BẮT BUỘC: RSI14<30, RSI7<30, MFI14<20, MFI11<20, KL TB10 ≥ 20.000.",
-            "Tài chính BẮT BUỘC: 0 < P/E < 10, ROA > 0, ROE > 5%.",
-            f"Đã quét {so_quet} mã. Phiên tham chiếu: {ngay_tham_chieu.strftime('%d/%m/%Y')} (chỉ dùng phiên đã đóng).",
-            "",
-            f"✅ Đủ điều kiện kỹ thuật: {len(nhom['DU_DIEU_KIEN'])}",
-            f"👀 Theo dõi vùng đáy: {len(nhom['THEO_DOI'])}",
-            f"🔴 Tài chính yếu/bất thường: {len(nhom['TAI_CHINH_YEU'])}",
-            f"⏳ Dữ liệu cũ (không xếp hạng): {len(nhom['DU_LIEU_CU'])}",
-            f"🔁 Theo dõi sau quá bán (≤{SO_PHIEN_THEO_DOI} phiên): {len(nhom['SAU_QUA_BAN'])}"]
-    if loai_tc:
-        dong.append(f"ℹ️ Đạt kỹ thuật nhưng loại vì P/E/ROA/ROE ({len(loai_tc)} mã): " + ", ".join(loai_tc[:20]))
-    if loi_api:
-        dong.append(f"⚠️ Lỗi tải giá ({len(loi_api)} mã): " + ", ".join(loi_api[:20]) + (" ..." if len(loi_api) > 20 else ""))
-    if loi_tai_chinh:
-        dong.append("⚠️ Không tải được tài chính: " + ", ".join(loi_tai_chinh[:20]))
-    if khong_du_lieu:
-        dong.append(f"ℹ️ Không đủ dữ liệu giá: {len(khong_du_lieu)} mã")
-    return "\n".join(dong)
-
-
-def tin_theo_doi_sau_qua_ban(ds):
-    dong = [f"🔁 THEO DÕI SAU QUÁ BÁN (đã thoát vùng quá bán trong ≤{SO_PHIEN_THEO_DOI} phiên, giá chưa thủng đáy)"]
+def dong_sau_qua_ban(ds):
+    dong = [f"🔁 VỪA THOÁT QUÁ BÁN (≤{SO_PHIEN_THEO_DOI} phiên, chưa thủng đáy)"]
     for r in ds[:TOI_DA_DONG_THEO_DOI]:
         tc = r["tc"]
-        dong.append(f"• {r['ma']} {r['gia']:.2f} · thoát quá bán {r['thoat_qua_ban']} phiên trước · "
-                    f"Q {tc['quality']:.0f} · B {r['bottom']:.0f} · {tc['trang_thai'][:2]} · RSI14 {r['rsi14']:.0f}")
+        dong.append(f"• {r['ma']} {r['gia']:.2f} · {r['thoat_qua_ban']} phiên trước · "
+                    f"Chất lượng {tc['quality']:.0f} · Đáy {r['bottom']:.0f} · RSI14 {r['rsi14']:.0f}")
     if len(ds) > TOI_DA_DONG_THEO_DOI:
         dong.append(f"... và {len(ds) - TOI_DA_DONG_THEO_DOI} mã nữa")
     return "\n".join(dong)
 
 
-CHAN_TRANG = (
-    "ℹ️ CÁCH ĐỌC: Quality = định giá 20 + sinh lời 25 + tăng trưởng 20 + an toàn tài chính 20 + thanh khoản 15, "
-    "chuẩn hóa theo chỉ số có dữ liệu, rồi trừ cảnh báo (nặng -15, nhẹ -7). "
-    "Bottom = quá bán 20 (không thưởng RSI/MFI cực thấp) + RSI quay đầu 15 + MFI quay đầu 10 + giữ đáy 15 "
-    "+ trên MA5 10 + MACD 10 + lực cầu 10 + phân kỳ dương 10. Thứ tự trong nhóm = 60% Quality + 40% Bottom "
-    "(giả thuyết).\n"
-    "Điểm là mô hình thử nghiệm, chưa backtest. Chưa kiểm tra được: đình chỉ giao dịch, kiểm toán, tin tức, "
-    "điều chỉnh giá do cổ tức/chia tách, chỉ tiêu riêng của ngân hàng (NPL, CAR, NIM) và dòng tiền kinh doanh.\n"
-    "Không phải lời khuyên đầu tư. Người dùng tự nghiên cứu và tự chịu trách nhiệm với quyết định của mình."
-)
+CHAN_TRANG = "ℹ️ Điểm là mô hình thử nghiệm, chưa backtest. Không phải lời khuyên đầu tư."
 
-
-# ------------------------------------------------------------------ chương trình chính
 
 def dat_dieu_kien_tai_chinh(tc):
     """0 < P/E < 10, ROA > 0, ROE > 5%. Thiếu dữ liệu thì coi là KHÔNG đạt (không kiểm chứng được)."""
@@ -652,26 +606,43 @@ def chay(args):
         nhom[k].sort(key=khoa_xep_hang, reverse=True)
     nhom["SAU_QUA_BAN"].sort(key=khoa_xep_hang, reverse=True)
 
-    gui_telegram(tin_tong_quan(ngay_tham_chieu, nhom, len(ds), loi_api, loi_tai_chinh, khong_du_lieu, che_do_thu, loai_tai_chinh),
-                 args.no_telegram)
-    for k in ("DU_DIEU_KIEN", "THEO_DOI", "TAI_CHINH_YEU"):
-        if not nhom[k]:
-            continue
-        gui_telegram(f"{TEN_NHOM[k]} — {len(nhom[k])} mã", args.no_telegram)
-        for thu_tu, r in enumerate(nhom[k][:TOI_DA_TIN_CHI_TIET], start=1):
-            gui_telegram(tin_chi_tiet(r, thu_tu), args.no_telegram)
-        if len(nhom[k]) > TOI_DA_TIN_CHI_TIET:
-            con_lai = ", ".join(r["ma"] for r in nhom[k][TOI_DA_TIN_CHI_TIET:])
-            gui_telegram(f"... còn {len(nhom[k]) - TOI_DA_TIN_CHI_TIET} mã chưa hiện chi tiết: {con_lai}", args.no_telegram)
+    danh_sach = nhom["DU_DIEU_KIEN"] + nhom["THEO_DOI"] + nhom["TAI_CHINH_YEU"]
+    thu_tu_nhan = {"🟢": 0, "🟡": 1, "🔴": 2}
+    danh_sach.sort(key=lambda r: (thu_tu_nhan[nhan_muc_do(r)[0]], -khoa_xep_hang(r)))
+
+    khoi = [tin_dau(ngay_tham_chieu, len(ds), len(danh_sach), che_do_thu)]
+    if not danh_sach:
+        khoi.append("Hôm nay không có mã nào đạt đủ điều kiện.")
+    for thu_tu, r in enumerate(danh_sach[:TOI_DA_TIN_CHI_TIET * 2], start=1):
+        khoi.append(tin_gon(r, thu_tu))
+    if len(danh_sach) > TOI_DA_TIN_CHI_TIET * 2:
+        khoi.append("... còn: " + ", ".join(r["ma"] for r in danh_sach[TOI_DA_TIN_CHI_TIET * 2:]))
     if nhom["SAU_QUA_BAN"]:
-        gui_telegram(tin_theo_doi_sau_qua_ban(nhom["SAU_QUA_BAN"]), args.no_telegram)
+        khoi.append(dong_sau_qua_ban(nhom["SAU_QUA_BAN"]))
+    ghi = []
+    if loai_tai_chinh:
+        ghi.append("Trượt P/E/ROA/ROE: " + ", ".join(loai_tai_chinh[:20]))
     if nhom["DU_LIEU_CU"]:
-        gui_telegram("⏳ MÃ CÓ DỮ LIỆU CŨ — KHÔNG XẾP HẠNG PHIÊN NÀY:\n" + "\n".join(
-            f"• {r['ma']} — phiên cuối {r['ngay'].strftime('%d/%m/%Y')} (có thể không giao dịch/bị hạn chế, cần kiểm tra)"
-            for r in nhom["DU_LIEU_CU"]), args.no_telegram)
-    if not any(nhom[k] for k in ("DU_DIEU_KIEN", "THEO_DOI", "TAI_CHINH_YEU", "DU_LIEU_CU")):
-        gui_telegram(f"Quét xong ({ngay_tham_chieu}): không có mã nào đạt đủ điều kiện bắt buộc.", args.no_telegram)
-    gui_telegram(CHAN_TRANG, args.no_telegram)
+        ghi.append("Dữ liệu cũ (không xếp hạng): " + ", ".join(
+            f"{r['ma']} (phiên cuối {r['ngay'].strftime('%d/%m')})" for r in nhom["DU_LIEU_CU"]))
+    if loi_api:
+        ghi.append(f"Lỗi tải giá {len(loi_api)} mã: " + ", ".join(loi_api[:15]))
+    if loi_tai_chinh:
+        ghi.append("Không tải được tài chính: " + ", ".join(loi_tai_chinh[:15]))
+    if ghi:
+        khoi.append("\n".join("• " + g for g in ghi))
+    khoi.append(CHAN_TRANG)
+
+    tin, hien = [], ""
+    for k in khoi:
+        if hien and len(hien) + len(k) + 2 > 3500:
+            tin.append(hien)
+            hien = ""
+        hien += ("\n\n" if hien else "") + k
+    if hien:
+        tin.append(hien)
+    for t in tin:
+        gui_telegram(t, args.no_telegram)
     print("\nHoàn tất!")
 
 
