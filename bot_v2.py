@@ -460,6 +460,37 @@ def nhan_muc_do(r):
     return "🟡", "Cần xem kỹ"
 
 
+def ket_luan(r):
+    """Kết luận theo quy tắc (KHÔNG phải lời khuyên cá nhân): các dòng gạch đầu dòng."""
+    tc, th, kb = r["tc"], r["th"], r["kich_ban"]
+    icon, _ = nhan_muc_do(r)
+    vung = f"{kb['vung_mua_tu']:.2f}–{kb['vung_mua_den']:.2f}"
+    kich_ban = f"vùng {vung}, cắt lỗ {kb['stop']:.2f} (-{kb['rui_ro_pct']:.1f}%)"
+    if kb["kc1"]:
+        kich_ban += f", mục tiêu {kb['kc1']:.2f} (+{(kb['kc1'] / kb['gia'] - 1) * 100:.1f}%)"
+    if icon == "🔴":
+        ly_do = (tc["yeu"] + tc["nang"] + [c for c in ("giá penny dưới 5.000đ" if r["gia"] < 5 else "",
+                 "RSI/MFI cực thấp, đà giảm có thể còn tiếp" if (r["rsi14"] < 8 or r["mfi14"] < 2) else "") if c])
+        return ["👉 Theo quy tắc: KHÔNG thuộc diện cân nhắc (rủi ro rất cao)",
+                f"• Lý do: {ly_do[0] if ly_do else 'rủi ro cao'}",
+                "• Chỉ theo dõi, không có vùng giá khuyến nghị"]
+    thieu = [ten for ten, k in (("RSI tăng", "rsi_tang"), ("MFI tăng", "mfi_tang"),
+             ("giữ đáy 3 phiên", "giu_day"), ("giá trên MA5", "tren_ma5")) if not th[k]]
+    luu_y = "; chất lượng/tài chính cần thẩm định thêm" if icon == "🟡" else ""
+    if th["n_core"] == 4:
+        kl = [f"👉 Theo quy tắc: CÓ THỂ CÂN NHẮC vào thăm dò: {kich_ban}{luu_y}"]
+        if kb["rr1"] is not None and kb["rr1"] < RR_TOI_THIEU:
+            kl.append(f"• R:R {kb['rr1']:.1f} thấp (<{RR_TOI_THIEU}): chờ giá về gần hỗ trợ {kb['ho_tro']:.2f} để R:R tốt hơn")
+        return kl
+    if th["n_core"] >= 2:
+        return [f"👉 Theo quy tắc: CHỜ XÁC NHẬN (còn thiếu: {', '.join(thieu)}){luu_y}",
+                f"• Nếu cân nhắc khi đủ tín hiệu: {kich_ban}",
+                f"• Hủy kịch bản nếu giá đóng cửa dưới {kb['stop']:.2f}"]
+    return ["👉 Theo quy tắc: CHƯA NÊN VÀO (giá chưa quay đầu)",
+            f"• Chờ: RSI14 tăng, MFI14 tăng, giá trên MA5. Vùng quan sát {vung}",
+            f"• Nếu thủng {kb['stop']:.2f} thì kịch bản đáy không còn"]
+
+
 def tin_gon(r, thu_tu):
     tc, th, kb = r["tc"], r["th"], r["kich_ban"]
     icon, nhan = nhan_muc_do(r)
@@ -475,6 +506,7 @@ def tin_gon(r, thu_tu):
         dong.append(f"• Mục tiêu {kb['kc1']:.2f} (+{(kb['kc1'] / kb['gia'] - 1) * 100:.1f}%) · R:R {kb['rr1']:.1f}")
     else:
         dong.append("• Mục tiêu: chưa có kháng cự gần")
+    dong[1:1] = ket_luan(r)
     canh_bao = []
     if r["rsi14"] < 8 or r["mfi14"] < 2:
         canh_bao.append("RSI/MFI cực thấp, đà giảm có thể còn tiếp")
@@ -516,7 +548,7 @@ def dong_sau_qua_ban(ds):
     return "\n".join(dong)
 
 
-CHAN_TRANG = "ℹ️ Điểm là mô hình thử nghiệm, chưa backtest. Không phải lời khuyên đầu tư."
+CHAN_TRANG = "ℹ️ Kết luận là kết quả đối chiếu quy tắc của bot, mô hình chưa backtest, không phải lời khuyên đầu tư cá nhân."
 
 
 def dat_dieu_kien_tai_chinh(tc):
