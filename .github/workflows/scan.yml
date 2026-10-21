@@ -1,4 +1,4 @@
-name: Canh Bao Day Co Phieu
+name: Cảnh Báo Đáy Cổ Phiếu Claude
 
 on:
   workflow_dispatch:
