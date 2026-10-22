@@ -412,6 +412,18 @@ def phan_tich_gia(df):
         "duoi_ma20": bool(pd.notna(r["MA20"]) and r["close"] < r["MA20"]),
     }
     kq["bat_buoc"] = kq["qua_ban_4"] and kq["du_kl"]
+    truot = []
+    if kq["rsi14"] >= 30:
+        truot.append(f"RSI14 {kq['rsi14']:.1f} (cần <30)")
+    if kq["rsi7"] >= 30:
+        truot.append(f"RSI7 {kq['rsi7']:.1f} (cần <30)")
+    if kq["mfi14"] >= 20:
+        truot.append(f"MFI14 {kq['mfi14']:.1f} (cần <20)")
+    if kq["mfi11"] >= 20:
+        truot.append(f"MFI11 {kq['mfi11']:.1f} (cần <20)")
+    if not kq["du_kl"]:
+        truot.append(f"KL TB10 {kq['vol_tb10']:,.0f} (cần ≥{NGUONG_KL_TB10:,})")
+    kq["truot"] = truot
     kq["th"] = tin_hieu_dao_chieu(df)
     kq["kich_ban"] = ho_tro_khang_cu(df)
     kq["bottom"] = diem_bottom(kq)
@@ -507,7 +519,7 @@ def tin_gon(r, thu_tu):
             f"• Điểm chất lượng (tài chính): {tc['quality']:.0f}/100",
             f"• Điểm tín hiệu đáy (kỹ thuật): {r['bottom']:.0f}/100 · Tin cậy dữ liệu: {tc['tin_cay']:.0f}/100",
             f"• Giá: {th['trang_thai'].lower()} ({th['n_core']}/4 tín hiệu quay đầu)",
-            f"• Quá bán: RSI14 {r['rsi14']:.0f} · MFI14 {r['mfi14']:.0f}",
+            f"• Quá bán: RSI14 {r['rsi14']:.1f} · RSI7 {r['rsi7']:.1f} · MFI14 {r['mfi14']:.1f} · MFI11 {r['mfi11']:.1f}",
             f"• Tài chính: P/E {f(tc['pe'], '.1f')} · ROE {f(tc['roe'], '.1f', '%')} · ROA {f(tc['roa'], '.1f', '%')}",
             f"• Đáy 20 phiên {r['day20']:.2f} → giá hiện tại cao hơn {r['tang_tu_day20']:+.1f}%",
             f"• Vùng giá {kb['vung_mua_tu']:.2f}–{kb['vung_mua_den']:.2f} · Cắt lỗ {kb['stop']:.2f} (-{kb['rui_ro_pct']:.1f}%)"]
@@ -555,7 +567,8 @@ def dong_sau_qua_ban(ds):
         icon = nhan_muc_do(r)[0]
         dong.append(f"• {icon} {r['ma']} · giá {r['gia']:.2f} · đáy {r['day_qua_ban']:.2f} · "
                     f"{r['tang_tu_day']:+.1f}% so với đáy · thoát quá bán {r['thoat_qua_ban']} phiên trước · "
-                    f"Chất lượng {tc['quality']:.0f} · Tín hiệu đáy {r['bottom']:.0f} · RSI14 {r['rsi14']:.0f}")
+                    f"Chất lượng {tc['quality']:.0f} · Tín hiệu đáy {r['bottom']:.0f}")
+        dong.append("   ↳ Hiện trượt: " + ("; ".join(r["truot"]) if r["truot"] else "không rõ"))
     if len(ds) > TOI_DA_DONG_THEO_DOI:
         dong.append(f"... và {len(ds) - TOI_DA_DONG_THEO_DOI} mã nữa")
     return "\n".join(dong)
